@@ -6,7 +6,7 @@
 
 #define ENTRY_MAX 8
 
-void find(char *path, char *target)
+void find(char *path, char *target, int execArgc, char **execArgv)
 {
     int fd;
     struct dirent de;
@@ -38,8 +38,24 @@ void find(char *path, char *target)
         memmove(cur, de.name, DIRSIZ);
         if (strcmp(cur, ".") == 0 || strcmp(cur, "..") == 0)
             continue;
-        if (strcmp(cur, target) == 0)
-            printf("%s\n", buf);
+        if (strcmp(cur, target) == 0) {
+            if (execArgv) {
+                char *included[10];
+                for (int i = 0; i < execArgc; i++) {
+                    included[i] = execArgv[i];
+                }
+                included[execArgc] = buf;
+                int pid = fork();
+                if (pid) {
+                    wait(&pid);
+                }
+                else {
+                    exec(execArgv[0], included);
+                }
+            }
+            else 
+                printf("%s\n", buf);
+        }
         cur[DIRSIZ] = 0;
         if (stat(buf, &st) < 0)
             continue;
@@ -51,7 +67,7 @@ void find(char *path, char *target)
         {
             for (int i = 0; i < cnt; i++) {
                 strcpy(cur, entries[i]);
-                find(buf, target);
+                find(buf, target, execArgc, execArgv);
             }
             
             cnt = 0;
@@ -61,7 +77,7 @@ void find(char *path, char *target)
 
     for (int i = 0; i < cnt; i++) {
         strcpy(cur, entries[i]);
-        find(buf, target);
+        find(buf, target, execArgc, execArgv);
     }
 
     return;
@@ -74,10 +90,14 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    char **cmd = 0;
+    if (argc > 4 && strcmp(argv[3], "-exec") == 0)
+        cmd = argv + 4;
+
     char *root = argv[1];
     char *fileName = argv[2];
  
-    find(root, fileName);
+    find(root, fileName, argc - 4, cmd);
 
     return 0;
 }
